@@ -253,7 +253,7 @@ class FormidableMailJetContactField {
 		if ( is_array( $decode ) ) {
 			$key    = key( $decode );
 			$result = $decode[ $key ];
-			if ( isset( $atts['mj_id'] ) ) {
+			if ( isset( $atts['mj_id'] ) &&  !empty($atts['mj_id']) && $atts['mj_id'] = "1") {
 				$result = $key;
 			}
 		}
