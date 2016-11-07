@@ -28,6 +28,26 @@ class FormidableMailJetManager {
 
 		require_once 'FormidableMailJetSegmentField.php';
 		$segment = new FormidableMailJetSegmentField();
+
+		require_once 'FormidableMailJetStatusField.php';
+		$status = new FormidableMailJetStatusField();
+
+		add_action( 'frm_registered_form_actions', array( $this, 'register_action' ) );
+
+	}
+
+	/**
+	 * Register action
+	 *
+	 * @param $actions
+	 *
+	 * @return mixed
+	 */
+	public function register_action( $actions ) {
+		$actions['formidable_mailjet_send'] = 'FormidableMailJetSendAction';
+		require_once 'FormidableMailJetSendAction.php';
+
+		return $actions;
 	}
 
 	static function getShort() {
@@ -74,7 +94,7 @@ class FormidableMailJetManager {
 		}
 	}
 
-	public static function get_setting_link(){
+	public static function get_setting_link() {
 		return sprintf( '<a href="%s">%s</a>', esc_attr( admin_url( 'admin.php?page=formidable-settings&t=mailjet_integration_settings' ) ), FormidableMailJetManager::t( "Settings" ) );
 	}
 

@@ -21,11 +21,16 @@ class FormidableMailJetSettings {
 	 * @internal var gManager GManager_1_0
 	 */
 	public static function display_form() {
-		$gManager    = GManagerFactory::buildManager( 'FormidableMailJetManager', 'formidable_key_field', FormidableMailJetManager::getShort() );
-		$key         = get_option( FormidableMailJetManager::getShort() . 'licence_key' );
-		$public_key  = get_option( FormidableMailJetManager::getShort() . 'public_key' );
-		$private_key = get_option( FormidableMailJetManager::getShort() . 'private_key' );
-		$sender      = get_option( FormidableMailJetManager::getShort() . 'sender' );
+		$locale_source = array(
+			"en_US" => "English",
+			"es_ES" => "Español"
+		);
+		$gManager      = GManagerFactory::buildManager( 'FormidableMailJetManager', 'formidable_key_field', FormidableMailJetManager::getShort() );
+		$key           = get_option( FormidableMailJetManager::getShort() . 'licence_key' );
+		$public_key    = get_option( FormidableMailJetManager::getShort() . 'public_key' );
+		$private_key   = get_option( FormidableMailJetManager::getShort() . 'private_key' );
+		$sender        = get_option( FormidableMailJetManager::getShort() . 'sender' );
+		$locale        = get_option( FormidableMailJetManager::getShort() . 'locale' );
 		?>
 		<h3 class="frm_first_h3"><?= FormidableMailJetManager::t( "Licence Data for MailJet integration" ) ?></h3>
 		<table class="form-table">
@@ -47,7 +52,7 @@ class FormidableMailJetSettings {
 				<td><?= $gManager->getStatus() ?></td>
 			</tr>
 		</table>
-		<h3><?= FormidableMailJetManager::t( "MailJet credentials" ) ?></h3>
+		<h3><?= FormidableMailJetManager::t( "MailJet options" ) ?></h3>
 		<table class="form-table">
 			<tr>
 				<td width="150px"><label for="<?= FormidableMailJetManager::getShort() ?>_public_key"><?= FormidableMailJetManager::t( "Api key: " ) ?></label></td>
@@ -64,6 +69,23 @@ class FormidableMailJetSettings {
 					<label for="<?= FormidableMailJetManager::getShort() ?>_sender"><?= FormidableMailJetManager::t( "Sender: " ) ?></label>
 				</td>
 				<td><input type="text" size="40" name="<?= FormidableMailJetManager::getShort() ?>_sender" id="<?= FormidableMailJetManager::getShort() ?>_sender" value="<?= $sender ?>"/></td>
+			</tr>
+			<tr class="form-field" valign="top">
+				<td width="150px">
+					<label for="<?= FormidableMailJetManager::getShort() ?>_locale"><?= FormidableMailJetManager::t( "Locale: " ) ?></label>
+				</td>
+				<td>
+					<select id="<?= FormidableMailJetManager::getShort() ?>_locale" name="<?= FormidableMailJetManager::getShort() ?>_locale">
+						<?php foreach ( $locale_source as $locale_key => $locale_item ) {
+							$selected = "";
+							if ( $locale == $locale_key ) {
+								$selected = "selected='selected'";
+							}
+							echo "<option " . $selected . " value='" . $locale_key . "'>" . $locale_item . "</option>";
+						}
+						?>
+					</select>
+				</td>
 			</tr>
 		</table>
 	<?php
@@ -94,6 +116,12 @@ class FormidableMailJetSettings {
 			update_option( FormidableMailJetManager::getShort() . 'sender', $_POST[ FormidableMailJetManager::getShort() . '_sender' ] );
 		} else {
 			delete_option( FormidableMailJetManager::getShort() . 'sender' );
+		}
+
+		if ( isset( $_POST[ FormidableMailJetManager::getShort() . '_locale' ] ) && ! empty( $_POST[ FormidableMailJetManager::getShort() . '_locale' ] ) ) {
+			update_option( FormidableMailJetManager::getShort() . 'locale', $_POST[ FormidableMailJetManager::getShort() . '_locale' ] );
+		} else {
+			delete_option( FormidableMailJetManager::getShort() . 'locale' );
 		}
 
 		self::display_form();

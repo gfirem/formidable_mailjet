@@ -245,19 +245,34 @@ class FormidableMailJetContactField {
 	 * @return string
 	 */
 	public function add_formidable_custom_short_code( $replace_with, $tag, $atts, $field ) {
-		if($field->type != "mailjet_contact"){
+		if ( $field->type != "mailjet_contact" ) {
 			return $replace_with;
 		}
+
+		return self::process_content( $replace_with );
+	}
+
+	/**
+	 * Process the field content
+	 *
+	 * @param $content
+	 * @param bool $get_id
+	 *
+	 * @return mixed|string
+	 */
+	public static function process_content( $content, $get_id = false ) {
 		$result = "error!";
-		$decode = json_decode( $replace_with, true );
+		$decode = json_decode( $content, true );
 		if ( is_array( $decode ) ) {
-			$key    = key( $decode );
+			$key = key( $decode );
+			if ( $get_id ) {
+				return $key;
+			}
 			$result = $decode[ $key ];
-			if ( isset( $atts['mj_id'] ) &&  !empty($atts['mj_id']) && $atts['mj_id'] = "1") {
+			if ( isset( $atts['mj_id'] ) && ! empty( $atts['mj_id'] ) && $atts['mj_id'] = "1" ) {
 				$result = $key;
 			}
 		}
-
 
 		return $result;
 	}

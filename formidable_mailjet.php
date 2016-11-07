@@ -50,6 +50,8 @@ if ( ! class_exists( 'FormidableMailJet' ) ) :
 		 */
 		private function __construct() {
 
+			define( 'FORMIDABLE_MAILJET_IMAGE', plugin_dir_url( __FILE__ )."img/" );
+
 			// Load plugin text domain
 			add_action( 'init', array( $this, 'load_plugin_textdomain' ) );
 

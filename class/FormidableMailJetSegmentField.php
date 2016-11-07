@@ -9,20 +9,17 @@ use Mailjet\Resources;
 class FormidableMailJetSegmentField {
 	
 	function __construct() {
-		
 		if ( class_exists( "FrmProAppController" ) ) {
 			add_action( 'frm_pro_available_fields', array( $this, 'add_formidable_key_field' ) );
-		} else {
-			add_action( 'frm_available_fields', array( $this, 'add_formidable_key_field' ) );
+			add_action( 'frm_before_field_created', array( $this, 'set_formidable_key_field_options' ) );
+			add_action( 'frm_display_added_fields', array( $this, 'show_formidable_key_field_admin_field' ) );
+			add_action( 'frm_field_options_form', array( $this, 'field_formidable_key_field_option_form' ), 10, 3 );
+			add_action( 'frm_update_field_options', array( $this, 'update_formidable_key_field_options' ), 10, 3 );
+			add_action( 'frm_form_fields', array( $this, 'show_formidable_key_field_front_field' ), 10, 2 );
+			add_action( 'frm_display_value', array( $this, 'display_formidable_key_field_admin_field' ), 10, 3 );
+			add_filter( 'frm_display_field_options', array( $this, 'add_formidable_key_field_display_options' ) );
+			add_filter( 'frmpro_fields_replace_shortcodes', array( $this, 'add_formidable_custom_short_code' ), 10, 4 );
 		}
-		add_action( 'frm_before_field_created', array( $this, 'set_formidable_key_field_options' ) );
-		add_action( 'frm_display_added_fields', array( $this, 'show_formidable_key_field_admin_field' ) );
-		add_action( 'frm_field_options_form', array( $this, 'field_formidable_key_field_option_form' ), 10, 3 );
-		add_action( 'frm_update_field_options', array( $this, 'update_formidable_key_field_options' ), 10, 3 );
-		add_action( 'frm_form_fields', array( $this, 'show_formidable_key_field_front_field' ), 10, 2 );
-		add_action( 'frm_display_value', array( $this, 'display_formidable_key_field_admin_field' ), 10, 3 );
-		add_filter( 'frm_display_field_options', array( $this, 'add_formidable_key_field_display_options' ) );
-		add_filter( 'frmpro_fields_replace_shortcodes', array( $this, 'add_formidable_custom_short_code' ), 10, 4 );
 	}
 	
 	
@@ -244,19 +241,34 @@ class FormidableMailJetSegmentField {
 	 * @return string
 	 */
 	public function add_formidable_custom_short_code( $replace_with, $tag, $atts, $field ) {
-		if($field->type != "mailjet_segment"){
+		if ( $field->type != "mailjet_segment" ) {
 			return $replace_with;
 		}
+
+		return self::process_content( $replace_with );
+	}
+
+	/**
+	 * Process the field content
+	 *
+	 * @param $content
+	 * @param bool $get_id
+	 *
+	 * @return mixed|string
+	 */
+	public static function process_content( $content, $get_id = false ) {
 		$result = "error!";
-		$decode = json_decode( $replace_with, true );
+		$decode = json_decode( $content, true );
 		if ( is_array( $decode ) ) {
-			$key    = key( $decode );
+			$key = key( $decode );
+			if ( $get_id ) {
+				return $key;
+			}
 			$result = $decode[ $key ];
-			if ( isset( $atts['mj_id'] ) &&  !empty($atts['mj_id']) && $atts['mj_id'] = "1") {
+			if ( isset( $atts['mj_id'] ) && ! empty( $atts['mj_id'] ) && $atts['mj_id'] = "1" ) {
 				$result = $key;
 			}
 		}
-
 
 		return $result;
 	}
