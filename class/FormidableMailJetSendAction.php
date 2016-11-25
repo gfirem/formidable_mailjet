@@ -4,9 +4,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 class FormidableMailJetSendAction extends FrmFormAction {
-	
-	protected $form_default = array( 'wrk_name' => '' );
 
+
+	protected $form_default = array( 'wrk_name' => '' );
+	private $error = array();
 	
 	public function __construct() {
 		if ( class_exists( "FrmProAppController" ) ) {
@@ -28,8 +29,44 @@ class FormidableMailJetSendAction extends FrmFormAction {
 				'event'    => array( 'create', 'update' ),
 			);
 
-			$this->FrmFormAction( 'formidable_mailjet_send', FormidablePasswordFieldManager::t( 'MailJet Send Action' ), $action_ops );
+			$this->FrmFormAction( 'formidable_mailjet_send', FormidableMailJetManager::t( 'MailJet Send Action' ), $action_ops );
+
+			add_filter( 'frm_validate_entry', array( $this, 'validate_form' ), 20, 2 );
 		}
+	}
+
+	public function get_single_action( $id ) {
+		return parent::get_single_action( $id );
+	}
+
+	public function validate_form( $errors, $values ) {
+
+		$actions = FrmProPostAction::get_action_for_form( $values['form_id'], "formidable_mailjet_send" );
+
+		if ( ! empty( $actions ) ) {
+			foreach ( $actions as $key => $action ) {
+				$required_fields = array(
+					$action->post_content["campaign_name"],
+					$action->post_content["subject"],
+					$action->post_content["text_content"],
+					$action->post_content["html_content"],
+				);
+
+				if ( ! empty( $action->post_content["contact_list_id_manually"] ) ) {
+					$required_fields[] = $action->post_content["contact_list_id_manually"];
+				}
+
+				$to_validate = str_replace( array( "[", "]" ), "", $required_fields );
+
+				foreach ( $to_validate as $item ) {
+					if ( empty( $values["item_meta"][ $item ] ) ) {
+						return array_merge( $errors, array( "field" . $item => "Invalid data to send the campaign " ) );
+					}
+				}
+			}
+		}
+
+		return $errors;
 	}
 
 	/**
@@ -60,18 +97,33 @@ class FormidableMailJetSendAction extends FrmFormAction {
 			$args          = array();
 			$campaign_name = "";
 			$sender        = "";
-			$sender_name   = "";
-			$sender_email  = "";
 			$subject       = "";
 			$text_content  = "";
 			$html_content  = "";
-			$action_fields = array( "campaign_name", "subject", "sender", "sender_name", "sender_email", "segmentation_id", "text_content", "html_content" );
+			$action_fields = array( "campaign_name", "subject", "sender", "segmentation_id", "text_content", "html_content" );
 
-			$segmentation_list_content = FrmEntryMeta::get_entry_meta_by_field( $entry->id, $action->post_content["segmentation_id"] );
-			$segmentation_list_id      = FormidableMailJetSegmentField::process_content( $segmentation_list_content, true );
+			if ( ! empty( $action->post_content["segmentation_enabled"] ) ) {
+				if ( empty( $action->post_content["segmentation_id_manually"] ) ) {
+					$segmentation_list_content = FrmEntryMeta::get_entry_meta_by_field( $entry->id, $action->post_content["segmentation_id"] );
+					$segmentation_list_id      = strval( FormidableMailJetSegmentField::process_content( $segmentation_list_content, array(), true ) );
+				} else {
+					$segmentation_list_id = strval( $action->post_content["segmentation_id_manually"] );
+				}
+			} else {
+				$segmentation_list_id = "-1";
+			}
 
-			$contact_list_content = FrmEntryMeta::get_entry_meta_by_field( $entry->id, $action->post_content["contact_list_id"] );
-			$contact_list_id      = FormidableMailJetContactField::process_content( $contact_list_content, true );
+			if ( empty( $action->post_content["contact_list_id_manually"] ) ) {
+				$contact_list_content = FrmEntryMeta::get_entry_meta_by_field( $entry->id, $action->post_content["contact_list_id"] );
+				$contact_list_id      = strval( FormidableMailJetContactField::process_content( $contact_list_content, array(), true ) );
+			} else {
+				$contact_list_id = strval( $action->post_content["contact_list_id_manually"] );
+			}
+
+			$sender_random = false;
+			if ( ! empty( $action->post_content["sender_random"] ) ) {
+				$sender_random = true;
+			}
 
 			foreach ( $action_fields as $act_field ) {
 				$act_content = $action->post_content[ $act_field ];
@@ -83,31 +135,53 @@ class FormidableMailJetSendAction extends FrmFormAction {
 
 			extract( $args );
 			$mj_sender = new MailJetSend();
-			$result    = $mj_sender->send_campaign( $campaign_name, $sender, $sender_name, $sender_email, $subject, $contact_list_id, $segmentation_list_id, $text_content, $html_content );
+			$result    = $mj_sender->send_campaign( $campaign_name, $sender, subject, $contact_list_id, $segmentation_list_id, $text_content, $html_content, $sender_random );
 
-			if($result !== false) {
-				$status_fields     = FrmField::get_all_types_in_form( $form->id, "nailjet_status" );
+			if ( $result !== false ) {
+				$status_fields = FrmField::get_all_types_in_form( $form->id, "mailjet_status" );
 				if ( ! empty( $status_fields ) ) {
 					$campaign_overview = $mj_sender->overview_newsletter( $result["ID"] );
 					foreach ( $status_fields as $field ) {
 						$value = FrmEntryMeta::get_entry_meta_by_field( $entry->id, $field->id );
 						if ( empty( $value ) ) {
-							$insert_result = FrmEntryMeta::add_entry_meta( $entry->id, $field->id, null, json_encode($campaign_overview[0]));
+							$insert_result = FrmEntryMeta::add_entry_meta( $entry->id, $field->id, null, json_encode( $campaign_overview[0] ) );
 						} else {
-							$insert_result = FrmEntryMeta::update_entry_meta( $entry->id, $field->id, null, json_encode($campaign_overview[0]) );
+							$insert_result = FrmEntryMeta::update_entry_meta( $entry->id, $field->id, null, json_encode( $campaign_overview[0] ) );
 						}
 					}
 				}
 			}
 
-		} catch ( Exception $ex ) {
-			$this->show_error( $ex->getMessage() );
+		} catch ( FormidableMailJetException $ex ) {
+			$this->handle_exception( $ex->getMessage(), $ex->getBody() );
+		} catch ( InvalidArgumentException $ex ) {
+			$this->handle_exception( $ex->getMessage() );
 		}
+
 
 		return $result;
 	}
 
+	private function handle_exception( $message, $body = null ) {
+		if ( ! empty( $body ) && is_array( $body ) ) {
+			$error_str = "";
+			foreach ( $body as $key => $value ) {
+				if ( ! empty( $value ) ) {
+					$error_str .= $key . " : " . $value . "<br/>";
+				}
+			}
+			FormidableMailJetLogs::log( array(
+				'action'         => "Send",
+				'object_type'    => FormidableMailJetManager::getShort(),
+				'object_subtype' => "detail_error",
+				'object_name'    => $error_str,
+			) );
+		}
+		$this->show_error( $message );
+	}
+
 	public function show_error( $string ) {
+		add_settings_error( "fmj_notice", "", $string, "error" );
 		echo '<div class="error fade"><p>' . $string . '</p></div>';
 	}
 
@@ -149,7 +223,7 @@ class FormidableMailJetSendAction extends FrmFormAction {
 	public function add_admin_styles() {
 		$current_screen = get_current_screen();
 		if ( $current_screen->id === 'toplevel_page_formidable' ) {
-			$icon_url   = FORMIDABLE_MAILJET_IMAGE . "mailjet-logo.png";
+			$icon_url = FORMIDABLE_MAILJET_IMAGE . "mailjet-logo.png";
 			?>
 			<style>
 				.frm_formidable_mailjet_send_action.frm_bstooltip.frm_active_action.mailjet_integration {
@@ -190,67 +264,131 @@ class FormidableMailJetSendAction extends FrmFormAction {
 	 */
 	public function form( $form_action, $args = array() ) {
 		extract( $args );
-		$form           = $args['form'];
-		$fields         = $args['values']['fields'];
-		$action_control = $this;
+		$form            = $args['form'];
+		$fields          = $args['values']['fields'];
+		$action_control  = $this;
+		$mj_sender       = new MailJetSend();
+		$list_of_senders = $mj_sender->get_active_senders();
+
+		if ( empty( $form_action->post_content['contact_list_id_manually'] ) ) {
+			$contact_list_manually_show = 'style="display: none"';
+			$contact_list_show          = "";
+		} else {
+			$contact_list_show          = 'style="display: none"';
+			$contact_list_manually_show = "";
+		}
+
+		if ( empty( $form_action->post_content['segmentation_id_manually'] ) ) {
+			$segmentation_manually_show = 'style="display: none"';
+			$segmentation_show          = "";
+		} else {
+			$segmentation_show          = 'style="display: none"';
+			$segmentation_manually_show = "";
+		}
 
 		?>
 		<style>
-			<?= "#pda-loading-".$this->number ?>
+			<?php echo "#pda-loading-".$this->number ?>
 			{
 				display: none
 			;
 			}
 		</style>
-		<input type="hidden" name="form-nonce-<?= $this->number ?>" id="form-nonce-<?= $this->number ?>" form-copy-security="<?= base64_encode( 'get_form_fields' ); ?>">
-		<input type="hidden" value="<?= esc_attr( $form_action->post_content['form_id'] ); ?>" name="<?php echo $action_control->get_field_name( 'form_id' ) ?>">
-		<input type="hidden" value="<?= esc_attr( $form_action->post_content['form_destination_data'] ); ?>" name="<?php echo $action_control->get_field_name( 'form_destination_data' ) ?>">
-		<h3 id="copy_section"><?= FormidablePasswordFieldManager::t( 'Fill the data to create a campaign' ) ?></h3>
+		<h3 id="copy_section"><?php echo FormidableMailJetManager::t( 'Fill the data to create a campaign' ) ?></h3>
 		<hr/>
 		<table class="form-table frm-no-margin">
 			<tbody id="copy-table-body">
 			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'campaign_name' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Campaign Title: ' ); ?></b></label></th>
+				<th><label for="<?php echo $action_control->get_field_name( 'campaign_name' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Campaign Title: ' ); ?></b></label></th>
 				<td>
-					<input class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'campaign_name' ) ?>" id="<?php echo $action_control->get_field_name( 'campaign_name' ) ?>" value="<?= esc_attr( $form_action->post_content['campaign_name'] ); ?>"/>
+					<input class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'campaign_name' ) ?>" id="<?php echo $action_control->get_field_name( 'campaign_name' ) ?>" value="<?php echo esc_attr( $form_action->post_content['campaign_name'] ); ?>"/>
 				</td>
 			</tr>
 			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'subject' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Subject: ' ); ?></b></label></th>
+				<th><label for="<?php echo $action_control->get_field_name( 'subject' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Subject: ' ); ?></b></label></th>
 				<td>
-					<input class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'subject' ) ?>" id="<?php echo $action_control->get_field_name( 'subject' ) ?>" value="<?= esc_attr( $form_action->post_content['subject'] ); ?>"/>
+					<input class="large-text frm_help mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'subject' ) ?>" id="<?php echo $action_control->get_field_name( 'subject' ) ?>" value="<?php echo esc_attr( $form_action->post_content['subject'] ); ?>"/>
 				</td>
 			</tr>
 			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'sender' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Sender: ' ); ?></b></label></th>
+				<th><label for="<?php echo $action_control->get_field_name( 'sender' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Sender: ' ); ?></b></label></th>
 				<td>
-					<input class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'sender' ) ?>" id="<?php echo $action_control->get_field_name( 'sender' ) ?>" value="<?= esc_attr( $form_action->post_content['sender'] ); ?>"/>
+					<select class="large-text frm_help mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'sender' ) ?>" id="<?php echo $action_control->get_field_name( 'sender' ) ?>">
+						<?php
+						foreach ( $list_of_senders as $id => $item ) {
+							$selected = "";
+							if ( esc_attr( $form_action->post_content['sender'] ) == $item["ID"] ) {
+								$selected = "selected='selected'";
+							}
+							echo "<option " . $selected . " value='" . $item["ID"] . "'>" . $item["Name"] . " ( " . $item["Email"] . " ) " . "</option>";
+						}
+						?>
+					</select>
+
+					<div>
+						<?php
+						$sender_random_checked = "";
+						if ( ! empty( $form_action->post_content['sender_random'] ) && esc_attr( $form_action->post_content['sender_random'] ) == "1" ) {
+							$sender_random_checked = "checked='checked'";
+						}
+						?>
+						<label for="<?php echo $action_control->get_field_name( 'sender_random' ) ?>"><?php echo FormidableMailJetManager::t( ' Check to use a random sender from the list ' ); ?></label>
+						<input style="margin-left: 5px;" type="checkbox" <?php echo "$sender_random_checked"; ?> name="<?php echo $action_control->get_field_name( 'sender_random' ) ?>" id="<?php echo $action_control->get_field_name( 'sender_random' ) ?>" value="1"/>
+					</div>
 				</td>
 			</tr>
 			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'sender_name' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Sender Name: ' ); ?></b></label></th>
+				<th><label for="<?php echo $action_control->get_field_name( 'contact_list_id' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Contact List: ' ); ?></b></label></th>
 				<td>
-					<input class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'sender_name' ) ?>" id="<?php echo $action_control->get_field_name( 'sender_name' ) ?>" value="<?= esc_attr( $form_action->post_content['sender_name'] ); ?>"/>
+					<select <?php echo "$contact_list_show"; ?> class="large-text segmentation_id_select frm_help mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'contact_list_id' ) ?>" id="<?php echo $action_control->get_field_name( 'contact_list_id' ) ?>">
+						<?php
+						foreach ( $fields as $id => $item ) {
+							if ( $item["type"] == 'mailjet_contact' ) {
+								$selected = "";
+								if ( esc_attr( $form_action->post_content['contact_list_id'] ) == $item["id"] ) {
+									$selected = "selected='selected'";
+								}
+								echo "<option " . $selected . " value='" . $item["id"] . "'>" . $item["name"] . "</option>";
+							}
+						}
+						?>
+					</select>
+					<a href="#" class="mailjet_toggle_manually" target1="<?php echo $action_control->get_field_name( 'contact_list_id' ) ?>" target2="<?php echo $action_control->get_field_name( 'contact_list_id_manually' ) ?>"><?php echo FormidableMailJetManager::t( 'Toggle manually' ); ?></a>
+					<input <?php echo "$contact_list_manually_show"; ?> class="frm_help mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'contact_list_id_manually' ) ?>" id="<?php echo $action_control->get_field_name( 'contact_list_id_manually' ) ?>" value="<?php echo esc_attr( $form_action->post_content['contact_list_id_manually'] ); ?>"/>
 				</td>
 			</tr>
+			<?php
+			$segmentation_enable         = "";
+			$segmentation_container_show = 'style="display: none"';
+			if ( ! empty( $form_action->post_content['segmentation_enabled'] ) && esc_attr( $form_action->post_content['segmentation_enabled'] ) == "1" ) {
+				$segmentation_enable         = "checked='checked'";
+				$segmentation_container_show = "";
+			}
+			?>
 			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'sender_email' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Sender Email: ' ); ?></b></label></th>
+				<th><label for="<?php echo $action_control->get_field_name( 'segmentation_enabled' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Enable Segment: ' ); ?></b></label></th>
 				<td>
-					<input class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'sender_email' ) ?>" id="<?php echo $action_control->get_field_name( 'sender_email' ) ?>" value="<?= esc_attr( $form_action->post_content['sender_email'] ); ?>"/>
+					<input target="<?php echo $action_control->get_field_name( 'segmentation_id' ) ?>" <?php echo "$segmentation_enable"; ?> class="mailjet_conditional_segmentation" type="checkbox" name="<?php echo $action_control->get_field_name( 'segmentation_enabled' ) ?>" id="<?php echo $action_control->get_field_name( 'segmentation_enabled' ) ?>" value="1"/>
 				</td>
 			</tr>
-			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'segmentation_id' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Segmentation Id: ' ); ?></b></label></th>
+			<tr <?php echo "$segmentation_container_show"; ?> >
+				<th><label for="<?php echo $action_control->get_field_name( 'segmentation_id' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Segment: ' ); ?></b></label></th>
 				<td>
-					Aqui hay que poner la lista de campos que tienen el segmento
-					<input class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'segmentation_id' ) ?>" id="<?php echo $action_control->get_field_name( 'segmentation_id' ) ?>" value="<?= esc_attr( $form_action->post_content['segmentation_id'] ); ?>"/>
-				</td>
-			</tr>
-			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'contact_list_id' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Contact List Id: ' ); ?></b></label></th>
-				<td>
-					Aqui hay que poner la lista de campos que tienen los contactos
-					<input class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'contact_list_id' ) ?>" id="<?php echo $action_control->get_field_name( 'contact_list_id' ) ?>" value="<?= esc_attr( $form_action->post_content['contact_list_id'] ); ?>"/>
+					<select <?php echo "$segmentation_show"; ?> class="large-text segmentation_id_select frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'segmentation_id' ) ?>" id="<?php echo $action_control->get_field_name( 'segmentation_id' ) ?>">
+						<?php
+						foreach ( $fields as $id => $item ) {
+							if ( $item["type"] == 'mailjet_segment' ) {
+								$selected = "";
+								if ( esc_attr( $form_action->post_content['segmentation_id'] ) == $item["id"] ) {
+									$selected = "selected='selected'";
+								}
+								echo "<option " . $selected . " value='" . $item["id"] . "'>" . $item["name"] . "</option>";
+							}
+						}
+						?>
+					</select>
+					<a href="#" class="mailjet_toggle_manually" target1="<?php echo $action_control->get_field_name( 'segmentation_id' ) ?>" target2="<?php echo $action_control->get_field_name( 'segmentation_id_manually' ) ?>"><?php echo FormidableMailJetManager::t( 'Toggle manually' ); ?></a>
+					<input  <?php echo "$segmentation_manually_show"; ?> class="frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" type="text" name="<?php echo $action_control->get_field_name( 'segmentation_id_manually' ) ?>" id="<?php echo $action_control->get_field_name( 'segmentation_id_manually' ) ?>" value="<?php echo esc_attr( $form_action->post_content['segmentation_id_manually'] ); ?>"/>
 				</td>
 			</tr>
 			<tr>
@@ -259,15 +397,15 @@ class FormidableMailJetSendAction extends FrmFormAction {
 				</td>
 			</tr>
 			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'text_content' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Text Content: ' ); ?></b></label></th>
+				<th><label for="<?php echo $action_control->get_field_name( 'text_content' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Text Content: ' ); ?></b></label></th>
 				<td>
-					<textarea class="large-text  frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'text_content' ) ?>" id="<?php echo $action_control->get_field_name( 'text_content' ) ?>"><?= esc_attr( $form_action->post_content['text_content'] ); ?></textarea>
+					<textarea class="large-text frm_help  mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'text_content' ) ?>" id="<?php echo $action_control->get_field_name( 'text_content' ) ?>"><?php echo esc_attr( $form_action->post_content['text_content'] ); ?></textarea>
 				</td>
 			</tr>
 			<tr>
-				<th><label for="<?php echo $action_control->get_field_name( 'html_content' ) ?>"> <b><?= FormidablePasswordFieldManager::t( ' Html Content: ' ); ?></b></label></th>
+				<th><label for="<?php echo $action_control->get_field_name( 'html_content' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Html Content: ' ); ?></b></label></th>
 				<td>
-					<textarea class="large-text  frm_help mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'html_content' ) ?>" id="<?php echo $action_control->get_field_name( 'html_content' ) ?>"><?= esc_attr( $form_action->post_content['html_content'] ); ?></textarea>
+					<textarea class="large-text frm_help mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'html_content' ) ?>" id="<?php echo $action_control->get_field_name( 'html_content' ) ?>"><?php echo esc_attr( $form_action->post_content['html_content'] ); ?></textarea>
 				</td>
 			</tr>
 			</tbody>
@@ -309,6 +447,32 @@ class FormidableMailJetSendAction extends FrmFormAction {
 						jQuery('.frm_code_list a').addClass('frm_noallow').removeClass('frm_allow');
 					}
 				});
+
+				function invert_show($select, $manual) {
+					if ($("[id='" + $manual + "']").is(":visible")) {
+						$("[id='" + $manual + "']").hide();
+						$("[id='" + $manual + "']").val("");
+						$("[id='" + $select + "']").show();
+					}
+					else {
+						$("[id='" + $manual + "']").show();
+						$("[id='" + $select + "']").hide();
+					}
+				}
+
+				$(".mailjet_toggle_manually").click(function (e) {
+					e.preventDefault();
+					var $select = $(this).attr("target1"),
+						$manual = $(this).attr("target2");
+
+					invert_show($select, $manual);
+				});
+
+				$(".mailjet_conditional_segmentation").click(function (e) {
+					var $container = $(this).attr("target");
+					$container = $("[id='" + $container + "']").parent().parent();
+					($container.is(":visible")) ? $container.hide() : $container.show();
+				});
 			});
 		</script>
 	<?php
@@ -319,16 +483,18 @@ class FormidableMailJetSendAction extends FrmFormAction {
 	 */
 	function get_defaults() {
 		$result = array(
-			'form_id'         => $this->get_field_name( 'form_id' ),
-			'campaign_name'   => '',
-			'subject'         => '',
-			'sender'          => '',
-			'sender_name'     => '',
-			'sender_email'    => '',
-			'segmentation_id' => '',
-			'contact_list_id' => '',
-			'text_content'    => '',
-			'html_content'    => '',
+			'form_id'                  => $this->get_field_name( 'form_id' ),
+			'campaign_name'            => '',
+			'subject'                  => '',
+			'sender'                   => '',
+			'sender_random'            => '',
+			'segmentation_enabled'     => '',
+			'segmentation_id'          => '',
+			'segmentation_id_manually' => '',
+			'contact_list_id'          => '',
+			'contact_list_id_manually' => '',
+			'text_content'             => '',
+			'html_content'             => '',
 		);
 		
 		if ( $this->form_id != null ) {

@@ -245,7 +245,7 @@ class FormidableMailJetSegmentField {
 			return $replace_with;
 		}
 
-		return self::process_content( $replace_with );
+		return self::process_content( $replace_with, $atts );
 	}
 
 	/**
@@ -256,7 +256,7 @@ class FormidableMailJetSegmentField {
 	 *
 	 * @return mixed|string
 	 */
-	public static function process_content( $content, $get_id = false ) {
+	public static function process_content( $content, $atts, $get_id = false ) {
 		$result = "error!";
 		$decode = json_decode( $content, true );
 		if ( is_array( $decode ) ) {

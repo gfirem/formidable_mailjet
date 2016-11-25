@@ -1,0 +1,37 @@
+.ui-widget-overlay {
+    background: none !important;
+    opacity: 1;
+    filter: Alpha(Opacity=100);
+}
+
+.ui-dialog {
+    position: relative;
+    padding: .2em;
+    width: 300px;
+    z-index: 999999;
+}
+
+.ui-widget-header {
+    border: 1px solid #5f5f5f;
+    background: #989798 none 50% 50% repeat-x;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.ui-widget-content {
+    border: 1px solid #dddddd;
+    background: #eeeeee none 50% top repeat-x;
+    color: #333333;
+}
+
+#status-loading {
+    display: none;
+}
+
+.fmj_refresh_loading {
+    display: none;
+}
+
+.status-loading-container {
+    text-align: center;
+}

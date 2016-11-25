@@ -19,32 +19,68 @@ class MailJetSend {
 		if ( $credential != false ) {
 			$this->mj_client = new Client( $credential['public'], $credential['private'] );
 		} else {
-			throw new Exception( "Invalid Credentials" );
+			throw new FormidableMailJetException( "Invalid Credentials" );
 		}
 	}
 
-	public function send_campaign( $title, $sender, $sender_name, $sender_email, $subject, $contact_list_id, $segment_list_id, $text, $html, $schedule = "" ) {
-		$args_size = func_num_args();
-		$arg_list  = func_get_args();
-		for ( $i = 0; $i < $args_size; $i ++ ) {
-			if ( empty( $arg_list[ $i ] ) ) {
-				throw new InvalidArgumentException( "The parameter " . GDebug::get_var_name( $arg_list[ $i ] ) );
+	/**
+	 * Create and Send a campaign
+	 *
+	 * @param $title
+	 * @param $sender
+	 * @param $subject
+	 * @param $contact_list_id
+	 * @param $segment_list_id
+	 * @param $text
+	 * @param $html
+	 * @param bool $sender_random
+	 * @param string $schedule
+	 *
+	 * @return bool
+	 * @throws Exception
+	 */
+	public function send_campaign( $title, $sender, $subject, $contact_list_id, $segment_list_id, $text = "", $html = "", $sender_random = false, $schedule = "" ) {
+		$exclude = array( "sender_random", "schedule", "text", "html" );
+		foreach ( get_defined_vars() as $key => $var ) {
+			if ( ! in_array( $key, $exclude ) && empty( $var ) ) {
+				throw new InvalidArgumentException( "The parameter (" . $key . ") is empty." );
 			}
 		}
 
-		$response    = $this->create_newsletter( $title, $sender, $sender_name, $sender_email, $subject, $contact_list_id, $segment_list_id );
-		$response_id = $response[0]["ID"];
-		if ( ! empty( $response_id ) ) {
-			$this->add_content_to_newsletter( $response_id, $text, $html );
-			if ( empty( $schedule ) ) {
-				$this->send_newsletter( $response_id );
-			} else {
-				$this->schedule_newsletter( $response_id, $schedule );
-			}
-
-			return $response[0];
+		if ( ! $sender_random ) {
+			$sender_details = $this->get_sender( $sender );
+			$sender_details = $sender_details[0];
 		} else {
-			return false;
+			$senders         = $this->get_active_senders();
+			$sender_position = array_rand( $senders );
+			$sender_details  = $senders[ $sender_position ];
+		}
+
+		if ( ! empty( $sender_details ) ) {
+			$sender_name  = $sender_details["Name"];
+			$sender_email = $sender_details["Email"];
+			$sender       = $sender_details["Name"];
+		} else {
+			throw new InvalidArgumentException( "Invalid sender details." );
+		}
+
+		if ( ! empty( $sender_name ) && ! empty( $sender_email ) ) {
+			$response    = $this->create_newsletter( $title, $sender, $sender_name, $sender_email, $subject, $contact_list_id, $segment_list_id );
+			$response_id = $response[0]["ID"];
+			if ( ! empty( $response_id ) ) {
+				$this->add_content_to_newsletter( $response_id, $text, $html );
+				if ( empty( $schedule ) ) {
+					$this->send_newsletter( $response_id );
+				} else {
+					$this->schedule_newsletter( $response_id, $schedule );
+				}
+
+				return $response[0];
+			} else {
+				return false;
+			}
+		} else {
+			throw new InvalidArgumentException( "Invalid sender name or email." );
 		}
 	}
 
@@ -63,7 +99,7 @@ class MailJetSend {
 	 * @return array
 	 * @throws Exception
 	 */
-	public function create_newsletter( $title, $sender, $sender_name, $sender_email, $subject, $contact_list_id, $segment_list_id, $test_address = "" ) {
+	public function create_newsletter( $title, $sender, $sender_name, $sender_email, $subject, $contact_list_id, $segment_list_id = "-1", $test_address = "" ) {
 		$body = array(
 			"Locale"         => "en_US",
 			"Sender"         => $sender,
@@ -71,12 +107,15 @@ class MailJetSend {
 			"SenderEmail"    => $sender_email,
 			"Subject"        => $subject,
 			"ContactsListID" => $contact_list_id,
-			"SegmentationID" => $segment_list_id,
 			"EditMode"       => "tool",
 			"ReplyEmail"     => "progfm@hotmail.com",
 			"Title"          => $title
 
 		);
+
+		if ( $segment_list_id != "-1" && ! empty( $segment_list_id ) ) {
+			$body["SegmentationID"] = $segment_list_id;
+		}
 
 		if ( ! empty( $test_address ) ) {
 			$body["TestAddress"] = $test_address;
@@ -87,7 +126,7 @@ class MailJetSend {
 		if ( $result->success() ) {
 			return $result->getData();
 		} else {
-			throw new Exception( "Error creating the newsletter. Response Status:" . $result->getStatus() );
+			throw new FormidableMailJetException( "Error creating the newsletter. Response Status:" . $result->getStatus(), $result->getBody() );
 		}
 	}
 
@@ -113,7 +152,7 @@ class MailJetSend {
 			if ( $result->success() ) {
 				return $result->getData();
 			} else {
-				throw new Exception( "Error adding the content to the newsletter. Response Status:" . $result->getStatus() );
+				throw new FormidableMailJetException( "Error adding the content to the newsletter. Response Status:" . $result->getStatus(), $result->getBody() );
 			}
 		} else {
 			throw new InvalidArgumentException( "Id parameter is empty" );
@@ -147,10 +186,10 @@ class MailJetSend {
 				if ( $result->success() ) {
 					return $result->getData();
 				} else {
-					throw new Exception( "Error sending the test of the newsletter. Response Status:" . $result->getStatus() );
+					throw new FormidableMailJetException( "Error sending the test of the newsletter. Response Status:" . $result->getStatus(), $result->getBody() );
 				}
 			} else {
-				throw new Exception( "Don't detect any email into the body" );
+				throw new FormidableMailJetException( "Don't detect any email into the body" );
 			}
 		} else {
 			throw new InvalidArgumentException( "Id parameter is empty" );
@@ -173,7 +212,7 @@ class MailJetSend {
 			if ( $result->success() ) {
 				return $result->getData();
 			} else {
-				throw new Exception( "Error sending the newsletter. Response Status:" . $result->getStatus() );
+				throw new FormidableMailJetException( "Error sending the newsletter. Response Status:" . $result->getStatus(), $result->getBody() );
 			}
 		} else {
 			throw new InvalidArgumentException( "Id parameter is empty" );
@@ -201,7 +240,7 @@ class MailJetSend {
 			if ( $result->success() ) {
 				return $result->getData();
 			} else {
-				throw new Exception( "Error sending the newsletter. Response Status:" . $result->getStatus() );
+				throw new FormidableMailJetException( "Error sending the newsletter. Response Status:" . $result->getStatus(), $result->getBody() );
 			}
 		} else {
 			throw new InvalidArgumentException( "Id parameter is empty" );
@@ -224,7 +263,7 @@ class MailJetSend {
 			if ( $result->success() ) {
 				return $result->getData();
 			} else {
-				throw new Exception( "Error getting the status of the newsletter. Response Status:" . $result->getStatus() );
+				throw new FormidableMailJetException( "Error getting the status of the newsletter. Response Status:" . $result->getStatus(), $result->getBody() );
 			}
 		} else {
 			throw new InvalidArgumentException( "Id parameter is empty" );
@@ -242,16 +281,101 @@ class MailJetSend {
 	public function overview_newsletter( $id ) {
 		if ( ! empty( $id ) ) {
 
-			$result = $this->mj_client->get( Resources::$Campaign, array( "ID" => "mj.nl=".$id ) );
+			$result = $this->mj_client->get( Resources::$Campaign, array( "ID" => "mj.nl=" . $id ) );
 
 			if ( $result->success() ) {
-				return $result->getData();
+				$data                  = $result->getData();
+				$data[0]["LastUpdate"] = time();
+
+				return $data;
 			} else {
-				throw new Exception( "Error getting overview of the newsletter. Response Status:" . $result->getStatus() );
+				throw new FormidableMailJetException( "Error getting overview of the newsletter. Response Status:" . $result->getStatus(), $result->getBody() );
 			}
 		} else {
 			throw new InvalidArgumentException( "Id parameter is empty" );
 		}
 	}
 
+	/**
+	 * Get a list of active senders
+	 *
+	 */
+	public function get_active_senders() {
+		$result = $this->mj_client->get( Resources::$Sender, array( "filters" => array( "status" => "Active" ) ) );
+
+		if ( $result->success() ) {
+			return $result->getData();
+		} else {
+			throw new FormidableMailJetException( "Error getting active sender list. Response Status:" . $result->getStatus(), $result->getBody() );
+		}
+	}
+
+	/**
+	 * Get sender details
+	 *
+	 * @param $id
+	 *
+	 * @return array
+	 * @throws Exception
+	 */
+	public function get_sender( $id ) {
+		if ( ! empty( $id ) ) {
+
+			$result = $this->mj_client->get( Resources::$Sender, array( "ID" => $id ) );
+
+			if ( $result->success() ) {
+				return $result->getData();
+			} else {
+				throw new FormidableMailJetException( "Error getting the sender details. Response Status:" . $result->getStatus(), $result->getBody() );
+			}
+		} else {
+			throw new InvalidArgumentException( "Id parameter is empty" );
+		}
+	}
+
+	/**
+	 * Get Api Key Payload
+	 *
+	 * @param $id
+	 *
+	 * @return array
+	 * @throws Exception
+	 */
+	public function get_api_pay_load( $id ) {
+		if ( ! empty( $id ) ) {
+
+			$result = $this->mj_client->get( Resources::$Apikeytotals, array( "ID" => $id ) );
+
+			if ( $result->success() ) {
+				return $result->getData();
+			} else {
+				throw new FormidableMailJetException( "Error getting the api key payload. Response Status:" . $result->getStatus(), $result->getBody() );
+			}
+		} else {
+			throw new InvalidArgumentException( "Id parameter is empty" );
+		}
+	}
+
+	/**
+	 * Get Api Details
+	 *
+	 * @param $id
+	 *
+	 * @return array
+	 * @throws Exception
+	 */
+	public function get_api_details( $id ) {
+		if ( ! empty( $id ) ) {
+
+			$result = $this->mj_client->get( Resources::$Apikey, array( "ID" => $id ) );
+
+			if ( $result->success() ) {
+				return $result->getData();
+			} else {
+				throw new FormidableMailJetException( "Error getting the api details. Response Status:" . $result->getStatus(), $result->getBody() );
+			}
+		} else {
+			throw new InvalidArgumentException( "Id parameter is empty" );
+		}
+	}
 }
