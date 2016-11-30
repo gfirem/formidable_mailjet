@@ -125,6 +125,15 @@ class FormidableMailJetSendAction extends FrmFormAction {
 				$sender_random = true;
 			}
 
+			$schedule = "";
+			if ( ! empty( $action->post_content["send_schedule"] ) ) {
+				$schedule_content = FrmEntryMeta::get_entry_meta_by_field( $entry->id, $action->post_content["send_schedule"] );
+				$format_time      = DateTime::createFromFormat( "Y/m/d H:i", $schedule_content );
+				if ( $format_time !== false ) {
+					$schedule = $format_time->getTimestamp();
+				}
+			}
+
 			foreach ( $action_fields as $act_field ) {
 				$act_content = $action->post_content[ $act_field ];
 				$shortCodes  = FrmFieldsHelper::get_shortcodes( $act_content, $entry->form_id );
@@ -135,21 +144,32 @@ class FormidableMailJetSendAction extends FrmFormAction {
 
 			extract( $args );
 			$mj_sender = new MailJetSend();
-			$result    = $mj_sender->send_campaign( $campaign_name, $sender, subject, $contact_list_id, $segmentation_list_id, $text_content, $html_content, $sender_random );
+			$result    = $mj_sender->send_campaign( $campaign_name, $sender, $subject, $contact_list_id, $segmentation_list_id, $text_content, $html_content, $sender_random, $schedule );
 
 			if ( $result !== false ) {
 				$status_fields = FrmField::get_all_types_in_form( $form->id, "mailjet_status" );
 				if ( ! empty( $status_fields ) ) {
-					$campaign_overview = $mj_sender->overview_newsletter( $result["ID"] );
+					if ( empty( $schedule ) ) {
+						$campaign_overview = $mj_sender->overview_newsletter( $result["ID"] );
+						$status_data       = $campaign_overview[0];
+					} else {
+						$status_data["NewsLetterID"] = $result["ID"];
+						$status_data["LastUpdate"]   = time();
+					}
 					foreach ( $status_fields as $field ) {
 						$value = FrmEntryMeta::get_entry_meta_by_field( $entry->id, $field->id );
 						if ( empty( $value ) ) {
-							$insert_result = FrmEntryMeta::add_entry_meta( $entry->id, $field->id, null, json_encode( $campaign_overview[0] ) );
+							$insert_result = FrmEntryMeta::add_entry_meta( $entry->id, $field->id, null, json_encode( $status_data ) );
 						} else {
-							$insert_result = FrmEntryMeta::update_entry_meta( $entry->id, $field->id, null, json_encode( $campaign_overview[0] ) );
+							$insert_result = FrmEntryMeta::update_entry_meta( $entry->id, $field->id, null, json_encode( $status_data ) );
 						}
 					}
 				}
+				FormidableMailJetAdmin::setMessage( array(
+					"message" => FormidableMailJetManager::t( "All fine!" ),
+					"type"    => "success",
+
+				) );
 			}
 
 		} catch ( FormidableMailJetException $ex ) {
@@ -157,7 +177,6 @@ class FormidableMailJetSendAction extends FrmFormAction {
 		} catch ( InvalidArgumentException $ex ) {
 			$this->handle_exception( $ex->getMessage() );
 		}
-
 
 		return $result;
 	}
@@ -170,19 +189,29 @@ class FormidableMailJetSendAction extends FrmFormAction {
 					$error_str .= $key . " : " . $value . "<br/>";
 				}
 			}
+
 			FormidableMailJetLogs::log( array(
 				'action'         => "Send",
 				'object_type'    => FormidableMailJetManager::getShort(),
 				'object_subtype' => "detail_error",
 				'object_name'    => $error_str,
 			) );
+
+			FormidableMailJetAdmin::setMessage( array(
+				"message" => $error_str,
+				"type"    => "danger"
+			) );
+
+			return;
 		}
 		$this->show_error( $message );
 	}
 
 	public function show_error( $string ) {
-		add_settings_error( "fmj_notice", "", $string, "error" );
-		echo '<div class="error fade"><p>' . $string . '</p></div>';
+		FormidableMailJetAdmin::setMessage( array(
+			"message" => $string,
+			"type"    => "danger"
+		) );
 	}
 
 	/**
@@ -408,6 +437,29 @@ class FormidableMailJetSendAction extends FrmFormAction {
 					<textarea class="large-text frm_help mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'html_content' ) ?>" id="<?php echo $action_control->get_field_name( 'html_content' ) ?>"><?php echo esc_attr( $form_action->post_content['html_content'] ); ?></textarea>
 				</td>
 			</tr>
+			<tr>
+				<td colspan="2">
+					<hr/>
+				</td>
+			</tr>
+			<tr>
+				<th><label for="<?php echo $action_control->get_field_name( 'send_schedule' ) ?>"> <b><?php echo FormidableMailJetManager::t( ' Schedule: ' ); ?></b></label></th>
+				<td>
+					<select class="large-text segmentation_id_select frm_help mailjet_send_action <?php echo $action_control->get_field_name( 'html_content' ) ?>" name="<?php echo $action_control->get_field_name( 'send_schedule' ) ?>" id="<?php echo $action_control->get_field_name( 'send_schedule' ) ?>">
+						<?php
+						foreach ( $fields as $id => $item ) {
+							if ( $item["type"] == 'mailjet_date_time' ) {
+								$selected = "";
+								if ( esc_attr( $form_action->post_content['send_schedule'] ) == $item["id"] ) {
+									$selected = "selected='selected'";
+								}
+								echo "<option " . $selected . " value='" . $item["id"] . "'>" . $item["name"] . "</option>";
+							}
+						}
+						?>
+					</select>
+				</td>
+			</tr>
 			</tbody>
 		</table>
 
@@ -495,6 +547,7 @@ class FormidableMailJetSendAction extends FrmFormAction {
 			'contact_list_id_manually' => '',
 			'text_content'             => '',
 			'html_content'             => '',
+			'send_schedule'            => '',
 		);
 		
 		if ( $this->form_id != null ) {

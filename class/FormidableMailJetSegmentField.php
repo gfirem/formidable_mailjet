@@ -31,7 +31,7 @@ class FormidableMailJetSegmentField {
 	 * @return mixed
 	 */
 	public function add_formidable_key_field( $fields ) {
-		$fields['mailjet_segment'] = FormidableMailJetManager::t( "MJ Segment" );
+		$fields['mailjet_segment'] = '<b class="gfirem_field">' . FormidableMailJetManager::t( "MJ Segment" ) . '</b>';
 		
 		return $fields;
 	}
@@ -224,7 +224,7 @@ class FormidableMailJetSegmentField {
 			$display['options']        = true;
 			$display['label_position'] = true;
 			$display['css']            = true;
-			$display['conf_field']     = true;
+			$display['conf_field']     = false;
 		}
 		
 		return $display;

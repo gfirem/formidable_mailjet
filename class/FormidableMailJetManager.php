@@ -10,6 +10,7 @@ class FormidableMailJetManager {
 	protected static $version;
 
 	public function __construct() {
+		add_action( 'init', array( $this, "session_start" ) );
 
 		$this->plugin_slug = 'FormidableMailJet';
 		self::$version     = '0.1';
@@ -36,8 +37,18 @@ class FormidableMailJetManager {
 		require_once 'FormidableMailJetStatusField.php';
 		$status = new FormidableMailJetStatusField();
 
+		require_once 'FormidableMailJetDTField.php';
+		$date_time = new FormidableMailJetDTField();
+
 		add_action( 'frm_registered_form_actions', array( $this, 'register_action' ) );
 
+	}
+
+	public function session_start() {
+		$sid = session_id();
+		if ( empty( $sid ) ) {
+			session_start();
+		}
 	}
 
 	/**
@@ -86,7 +97,7 @@ class FormidableMailJetManager {
 		$public_key  = get_option( FormidableMailJetManager::getShort() . 'public_key' );
 		$private_key = get_option( FormidableMailJetManager::getShort() . 'private_key' );
 
-		if ( ! empty( $public_key ) && ! empty( $private_key )) {
+		if ( ! empty( $public_key ) && ! empty( $private_key ) ) {
 			return array(
 				"public"  => $public_key,
 				"private" => $private_key

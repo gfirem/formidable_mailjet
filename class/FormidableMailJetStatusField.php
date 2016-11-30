@@ -28,7 +28,7 @@ class FormidableMailJetStatusField {
 	 * @return mixed
 	 */
 	public function add_formidable_key_field( $fields ) {
-		$fields['mailjet_status'] = FormidableMailJetManager::t( "Campaign Status" );
+		$fields['mailjet_status'] = '<b class="gfirem_field">'.FormidableMailJetManager::t( "Campaign Status" ). '</b>';
 		
 		return $fields;
 	}

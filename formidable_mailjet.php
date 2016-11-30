@@ -51,7 +51,8 @@ if ( ! class_exists( 'FormidableMailJet' ) ) :
 		private function __construct() {
 
 			define( 'FORMIDABLE_MAILJET_IMAGE', plugin_dir_url( __FILE__ ) . "img/" );
-			define( 'FORMIDABLE_MAILJET_VIEW', plugin_dir_url( __FILE__ ) . "view/" );
+			define( 'FORMIDABLE_MAILJET_VIEW', plugin_dir_path( __FILE__ ) . "view/" );
+			define( 'FORMIDABLE_MAILJET_TEMPLATE', plugin_dir_path( __FILE__ ) . "template/" );
 			define( 'FORMIDABLE_MAILJET_JS', plugin_dir_url( __FILE__ ) . "assets/js/" );
 			define( 'FORMIDABLE_MAILJET_CSS', plugin_dir_url( __FILE__ ) . "assets/css/" );
 

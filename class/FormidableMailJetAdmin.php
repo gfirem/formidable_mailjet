@@ -26,6 +26,19 @@ class FormidableMailJetAdmin {
 	}
 
 	/**
+	 * Show a new notification. The array message need [message, type, title],
+	 * where type can be [success|info|warning|danger] by default info
+	 *
+	 * @param array $message
+	 */
+	public static function setMessage( $message ) {
+		if ( empty( $message["type"] ) ) {
+			$message["type"] = "info";
+		}
+		$_SESSION["message"] = $message;
+	}
+
+	/**
 	 * Ajax response to update_overview
 	 */
 	public function fmj_refresh_overview() {
@@ -168,6 +181,9 @@ class FormidableMailJetAdmin {
 		wp_enqueue_style( 'jquery' );
 		wp_enqueue_style( "jquery-ui-dialog" );
 		wp_enqueue_style( "formidable_mailjet", FORMIDABLE_MAILJET_CSS . 'formidable_mailjet.css' );
+		//enqueue bootstrap notification
+		wp_enqueue_style( 'bootstrap-theme', FORMIDABLE_MAILJET_CSS . 'bootstrap-theme.min.css', array(), FormidableMailJetManager::getVersion() );
+		wp_enqueue_style( 'formidable_mailjet_notification', FORMIDABLE_MAILJET_CSS . 'formidable_mailjet_notification.css', array(), FormidableMailJetManager::getVersion() );
 	}
 
 	/**
@@ -179,6 +195,12 @@ class FormidableMailJetAdmin {
 		wp_enqueue_script( "jquery-effects-core" );
 		wp_enqueue_script( 'jquery-ui-core' );
 		wp_enqueue_script( 'jquery-ui-dialog' );
+		//enqueue bootstrap notification
+		wp_enqueue_script( 'bootstrap', FORMIDABLE_MAILJET_JS . 'bootstrap.min.js', array( "jquery" ), FormidableMailJetManager::getVersion(), true );
+		wp_enqueue_script( 'bootstrap-notify', FORMIDABLE_MAILJET_JS . 'bootstrap-notify.min.js', array( "jquery" ), FormidableMailJetManager::getVersion(), true );
+		wp_enqueue_script( 'formidable_mailjet_notification', FORMIDABLE_MAILJET_JS . 'formidable_mailjet_notification.js', array( "jquery" ), FormidableMailJetManager::getVersion(), true );
+		wp_localize_script( 'formidable_mailjet_notification', 'formidable_mailjet_notification', $_SESSION["message"] );
+		$_SESSION["message"] = array();
 	}
 
 	/**

@@ -235,7 +235,7 @@ class MailJetSend {
 				"date" => $schedule
 			);
 
-			$result = $this->mj_client->post( Resources::$NewsletterSend, array( 'id' => $id, "body" => $body ) );
+			$result = $this->mj_client->post( Resources::$NewsletterSchedule, array( 'id' => $id, "body" => $body ) );
 
 			if ( $result->success() ) {
 				return $result->getData();
@@ -289,7 +289,7 @@ class MailJetSend {
 
 				return $data;
 			} else {
-				throw new FormidableMailJetException( "Error getting overview of the newsletter. Response Status:" . $result->getStatus(), $result->getBody() );
+				throw new FormidableMailJetException( "Error getting overview of the newsletter or not send yet. Response Status: " . $result->getStatus(), $result->getBody() );
 			}
 		} else {
 			throw new InvalidArgumentException( "Id parameter is empty" );
