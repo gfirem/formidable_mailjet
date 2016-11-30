@@ -6,25 +6,9 @@ Tested up to: 4.6.1
 Stable tag: 1.00
 License: Apache License 2.0
 
-En
-Pending!
-
-Es
-Pendiente!
+Introduction
 
 == Description ==
-
-En
-Pending!
-
-Example:
-Pending!
-
-Es
-Pendiente!
-
-Ejemplo:
-Pendiente!
 
 
 == Changelog ==

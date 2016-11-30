@@ -13,7 +13,7 @@ class FormidableMailJetManager {
 		add_action( 'init', array( $this, "session_start" ) );
 
 		$this->plugin_slug = 'FormidableMailJet';
-		self::$version     = '0.1';
+		self::$version     = '1.0.0';
 
 		//Load dependencies
 		require_once 'vendor/autoload.php';

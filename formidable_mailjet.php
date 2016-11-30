@@ -3,7 +3,7 @@
  * Plugin Name:       Formidable MailJet integration
  * Plugin URI:        http://wwww.gfirem.com
  * Description:       Integrate formidable with MailJet. Include two fields to select the contact list and segment and action to send a Campaign
- * Version:           0.1
+ * Version:           1.0.0
  * Author:            Guillermo Figueroa Mesa
  * Author URI:        http://wwww.gfirem.com
  * Text Domain:       formidable_mailjet-locale
