@@ -251,7 +251,7 @@ class FormidableMailJetSendAction extends FrmFormAction {
 
 	public function add_admin_styles() {
 		$current_screen = get_current_screen();
-		if ( $current_screen->id === 'toplevel_page_formidable' ) {
+		if ( !empty($current_screen) && $current_screen->id === 'toplevel_page_formidable' ) {
 			$icon_url = FORMIDABLE_MAILJET_IMAGE . "mailjet-logo.png";
 			?>
 			<style>

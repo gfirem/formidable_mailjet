@@ -26,7 +26,7 @@ class FormidableMailJetSettings {
 			"en_US" => "English",
 			"es_ES" => "Español"
 		);
-		$gManager       = GManagerFactory::buildManager( 'FormidableMailJetManager', 'formidable_key_field', FormidableMailJetManager::getShort() );
+		$gManager       = GManagerFactory::buildManager( 'FormidableMailJetManager', 'formidable_mailjet', FormidableMailJetManager::getShort() );
 		$key            = get_option( FormidableMailJetManager::getShort() . 'licence_key' );
 		$public_key     = get_option( FormidableMailJetManager::getShort() . 'public_key' );
 		$private_key    = get_option( FormidableMailJetManager::getShort() . 'private_key' );
@@ -114,7 +114,7 @@ class FormidableMailJetSettings {
 
 	public static function process_form() {
 		if ( isset( $_POST[ FormidableMailJetManager::getShort() . '_key' ] ) && ! empty( $_POST[ FormidableMailJetManager::getShort() . '_key' ] ) ) {
-			$gManager = GManagerFactory::buildManager( 'FormidableMailJetManager', 'formidable_key_field', FormidableMailJetManager::getShort() );
+			$gManager = GManagerFactory::buildManager( 'FormidableMailJetManager', 'formidable_mailjet', FormidableMailJetManager::getShort() );
 			$gManager->activate( $_POST[ FormidableMailJetManager::getShort() . '_key' ] );
 			update_option( FormidableMailJetManager::getShort() . 'licence_key', $_POST[ FormidableMailJetManager::getShort() . '_key' ] );
 		} else {

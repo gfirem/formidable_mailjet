@@ -196,7 +196,8 @@ class FormidableMailJetAdmin {
 		wp_enqueue_script( 'jquery-ui-core' );
 		wp_enqueue_script( 'jquery-ui-dialog' );
 		//enqueue bootstrap notification
-		wp_enqueue_script( 'bootstrap', FORMIDABLE_MAILJET_JS . 'bootstrap.min.js', array( "jquery" ), FormidableMailJetManager::getVersion(), true );
+		//TODO test for incompatibility
+//		wp_enqueue_script( 'bootstrap', FORMIDABLE_MAILJET_JS . 'bootstrap.min.js', array( "jquery" ), FormidableMailJetManager::getVersion(), true );
 		wp_enqueue_script( 'bootstrap-notify', FORMIDABLE_MAILJET_JS . 'bootstrap-notify.min.js', array( "jquery" ), FormidableMailJetManager::getVersion(), true );
 		wp_enqueue_script( 'formidable_mailjet_notification', FORMIDABLE_MAILJET_JS . 'formidable_mailjet_notification.js', array( "jquery" ), FormidableMailJetManager::getVersion(), true );
 		wp_localize_script( 'formidable_mailjet_notification', 'formidable_mailjet_notification', $_SESSION["message"] );
